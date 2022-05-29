@@ -16,3 +16,5 @@ O = lapply(L, function(x) {
 
 merged_df =  do.call(rbind, O)
 merged_df = cbind(as.data.frame(L) ,merged_df)
+
+write.csv(merged_df,"/Users/guoxinqieve/Applications/OneDrive - UC San Diego/WinterSpring2022_NNPP_transcription/processed_everyone/wordUtteranceCountEveryone.csv", row.names = FALSE)
