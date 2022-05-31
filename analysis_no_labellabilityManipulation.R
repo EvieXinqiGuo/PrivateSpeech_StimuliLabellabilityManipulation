@@ -10,4 +10,4 @@ wordUtterance = read_csv("/Users/guoxinqieve/Applications/OneDrive - UC San Dieg
 performance = raw_perforamance %>%
   
 #### processing data - getting rid of outliers
-####   
+#### making everything into lower case for Qualtrics data

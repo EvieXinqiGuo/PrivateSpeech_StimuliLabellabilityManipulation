@@ -1,0 +1,115 @@
+---
+title: "pilotNameability"
+output: html_document
+---
+
+```{r load data, include=FALSE}
+library(dplyr)
+library(tidyverse)
+library(lme4)
+
+pilotNameabilityAPS_raw = read_csv("/Users/guoxinqieve/Applications/OneDrive - UC San Diego/Spring2022_nameability_pilot transcription/processed_everyone/wordUtteranceCountEveryone_nameability_pilot.csv")
+
+performance_raw = read_csv("/Users/guoxinqieve/Applications/OneDrive - UC San Diego/SelfTalk_PerformanceLabellability - Sheet1.csv")
+```
+ 
+ However, with improved xxx, I expect this to be reduced. 
+
+```{r, include=FALSE}
+# looking at the amount of private speech during the neutral trials
+# descriptive data. 
+
+pilotNameabilityAPS = pilotNameabilityAPS_raw %>%
+  mutate(wordAmountDuringNeutral =  wordCountTrial5 + wordCountTrial6 + wordCountTrial9 + wordCountTrial10, 
+         
+         utteranceAmountDuringNeutral =  utteranceCountTrial5 + utteranceCountTrial6 + utteranceCountTrial9 + utteranceCountTrial10,
+         
+         talkeduringNeutral = ifelse(wordAmountDuringNeutral > 0, "yes", "no")) %>%
+  rename(Participant = L) %>%
+  mutate(across(where(is.character), tolower)) 
+
+pilotNameabilityAPS$Participant = substr(pilotNameabilityAPS$Participant, 1, nchar(pilotNameabilityAPS$Participant) - 4) ## this is removing the ".csv" from the name
+  
+colnames(pilotNameabilityAPS) = gsub("Trial", "", colnames(pilotNameabilityAPS) )
+
+tbl_talkeduringNeutral = as.data.frame(prop.table(table((pilotNameabilityAPS$talkeduringNeutral)))) %>% rename( talkedDuringNeutralOrNot=  Var1, prop_talkeduringNeutralFreq = Freq)
+
+ prop_talkeduringNeutral= round(tbl_talkeduringNeutral$prop_talkeduringNeutralFreq[tbl_talkeduringNeutral$talkedDuringNeutralOrNot == "yes"] *100, 2)
+
+plt_wordAmountDuringNeutral = ggplot(data = pilotNameabilityAPS, aes(wordAmountDuringNeutral)) +
+  geom_histogram(binwidth = 1) + 
+  ggtitle('') + 
+  scale_x_continuous("Words During All Neutral Trials") +
+  theme_minimal()
+
+plt_utteranceAmountDuringNeutral = ggplot(data = pilotNameabilityAPS, aes(utteranceAmountDuringNeutral)) +
+  geom_histogram(binwidth = 1) + 
+  ggtitle('') + 
+  scale_x_continuous("Utterances During All Neutral Trials") +
+  theme_minimal()
+```
+
+```{r, include=FALSE}
+# tricky issue the conditions are counterbalanced so the conditions are not always consistent
+
+# planned analyses
+## paired t-test on performance
+## looking at the main effect of amount of private speech
+## performance reversal effect
+## looking at the profile of self-talk - needs categorization. 
+
+# visualize data
+#### combining the performance with transcription
+performance = performance_raw %>%
+  mutate(across(where(is.character), tolower))   
+
+APS_performance = full_join(performance, pilotNameabilityAPS, by = "Participant")
+
+### writing a function that does the name wide-to-long transformation for time, tap, word, utterances
+prepare_APS_performance = function(col) {
+  df = APS_performance %>% 
+  select(Participant, starts_with(col)) %>%
+  pivot_longer(cols = -Participant,
+               names_prefix = col,
+               names_to = "Sequence", 
+               values_to = col)
+    return(df)
+}
+
+long_APS = prepare_APS_performance("Time") %>%
+  full_join(prepare_APS_performance("Tap"), 
+            by = c("Participant", "Sequence")) %>%
+  
+  full_join(prepare_APS_performance("wordCount"), 
+            by = c("Participant", "Sequence")) %>%
+  
+  full_join(prepare_APS_performance("utteranceCount"), 
+            by = c("Participant", "Sequence"))
+
+# performance and namebailitysequence
+long_APS_withCondition = full_join(long_APS,  APS_performance %>% select(Participant, NameabilitySequence), by = "Participant") %>%
+  mutate(condition = ifelse(Sequence %in% c("5", "6", "9", "10") , "Neutral", "EPS"), 
+         nameability = ifelse(
+           Sequence %in%
+             c("5", "6", "7", "8") &
+             NameabilitySequence == "easyfirst",
+           "Labellable",
+           ifelse(
+             Sequence %in% c("9", "10", "11", "12") &
+               NameabilitySequence == "hardfirst", 
+             "Labellable", 
+             "Non-labellable"))) 
+
+utteranceNoNameability = lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), utteranceCount ~ 1 + (1|Participant))
+utteranceNameability =lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), utteranceCount ~ nameability + 1+ (1|Participant))
+anova(utteranceNoNameability, utteranceNameability)
+
+```
+ 
+`r prop_talkeduringNeutral`% participants uttered private speech during the play efficient trials.
+
+```{r, fig.cap="Private Speech Amount DuringNeutral", echo=FALSE}  
+
+gridExtra::grid.arrange(plt_wordAmountDuringNeutral, plt_utteranceAmountDuringNeutral, nrow=1)
+
+```
