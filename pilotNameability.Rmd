@@ -42,12 +42,9 @@ plt_wordAmountDuringNeutral = ggplot(data = pilotNameabilityAPS, aes(wordAmountD
   scale_x_continuous("Words During All Neutral Trials") +
   theme_minimal()
 
-plt_utteranceAmountDuringNeutral = ggplot(data = pilotNameabilityAPS, aes(utteranceAmountDuringNeutral)) +
-  geom_histogram(binwidth = 1) + 
-  ggtitle('') + 
-  scale_x_continuous("Utterances During All Neutral Trials") +
-  theme_minimal()
-
+plt_utteranceCount = ggplot(data = long_APS_withCondition %>% filter(condition == "EPS"), aes(utteranceCount)) + geom_histogram(aes(y = ..density.., color = nameability), fill = "white",  position = "identity", binwidth = 1)+
+  geom_density(aes(color = nameability), size = 1) +
+  scale_color_manual(values = c("#868686FF", "#EFC000FF"))
 ```
 
 ```{r, include=FALSE}
@@ -165,8 +162,6 @@ set_theme(
 )
 
 plot_model(NameabilityInteractionAPSTap, type = "pred", terms = c("wordCount", "nameability"))
-
-
 
 plt_utteranceAmountDuringNeutral = ggplot(data = long_APS_withCondition, aes(Tap)) +
   geom_histogram(binwidth = 1) + 
