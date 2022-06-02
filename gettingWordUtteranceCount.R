@@ -2,7 +2,9 @@ library(tidyverse)
 library(dplyr)
 library(stringr)
 #### apply the same logic of word count and utterance count
+setwd("/Users/guoxinqieve/Applications/OneDrive - UC San Diego/WinterSpring2022_NNPP_transcription")
 L = list.files("/Users/guoxinqieve/Applications/OneDrive - UC San Diego/WinterSpring2022_NNPP_transcription", ".csv")
+
 O = lapply(L, function(x) {
   DF = read.csv(x, header = T, na.strings=c("","NA"), sep = ",")
   DF1 = DF %>%
