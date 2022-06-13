@@ -7,6 +7,11 @@ output: html_document
 library(dplyr)
 library(tidyverse)
 library(lme4)
+library(lubridate)
+library(lubridate)
+library(sjPlot)
+library(emmeans)
+library(ggplot2)
 
 pilotNameabilityAPS_raw = read_csv("/Users/guoxinqieve/Applications/OneDrive - UC San Diego/Spring2022_nameability_pilot transcription/processed_everyone/wordUtteranceCountEveryone_nameability_pilot.csv")
 
@@ -34,7 +39,7 @@ colnames(pilotNameabilityAPS) = gsub("Trial", "", colnames(pilotNameabilityAPS) 
 
 tbl_talkeduringNeutral = as.data.frame(prop.table(table((pilotNameabilityAPS$talkeduringNeutral)))) %>% rename( talkedDuringNeutralOrNot=  Var1, prop_talkeduringNeutralFreq = Freq)
 
- prop_talkeduringNeutral= round(tbl_talkeduringNeutral$prop_talkeduringNeutralFreq[tbl_talkeduringNeutral$talkedDuringNeutralOrNot == "yes"] *100, 2)
+prop_talkeduringNeutral= round(tbl_talkeduringNeutral$prop_talkeduringNeutralFreq[tbl_talkeduringNeutral$talkedDuringNeutralOrNot == "yes"] *100, 2)
 
 plt_wordAmountDuringNeutral = ggplot(data = pilotNameabilityAPS, aes(wordAmountDuringNeutral)) +
   geom_histogram(binwidth = 1) + 
@@ -42,9 +47,6 @@ plt_wordAmountDuringNeutral = ggplot(data = pilotNameabilityAPS, aes(wordAmountD
   scale_x_continuous("Words During All Neutral Trials") +
   theme_minimal()
 
-plt_utteranceCount = ggplot(data = long_APS_withCondition %>% filter(condition == "EPS"), aes(utteranceCount)) + geom_histogram(aes(y = ..density.., color = nameability), fill = "white",  position = "identity", binwidth = 1)+
-  geom_density(aes(color = nameability), size = 1) +
-  scale_color_manual(values = c("#868686FF", "#EFC000FF"))
 ```
 
 ```{r, include=FALSE}
@@ -59,7 +61,8 @@ plt_utteranceCount = ggplot(data = long_APS_withCondition %>% filter(condition =
 # visualize data
 #### combining the performance with transcription
 performance = performance_raw %>%
-  mutate(across(where(is.character), tolower))   
+  mutate(across(where(is.character), tolower))
+  
 
 APS_performance = full_join(performance, pilotNameabilityAPS, by = "Participant")
 
@@ -96,22 +99,49 @@ long_APS_withCondition = full_join(long_APS,  APS_performance %>% select(Partici
              Sequence %in% c("9", "10", "11", "12") &
                NameabilitySequence == "hardfirst", 
              "Labellable", 
-             "Non-labellable"))) 
+             "Non-labellable")),
+         Time_sec = as.numeric(seconds(long_APS_withCondition$Time)/60)) %>%
+  mutate(wordRate = wordCount/Time_sec) %>%
+  mutate(utteranceRate = utteranceCount/Time_sec)
+
+
+plt_utteranceCount = ggplot(data = long_APS_withCondition %>% filter(condition == "EPS"), aes(utteranceCount)) + geom_histogram(aes(y = ..density.., color = nameability), fill = "white",  position = "identity", binwidth = 1)+
+  geom_density(aes(color = nameability), size = 1) +
+  scale_color_manual(values = c("#868686FF", "#EFC000FF"))
 
 utteranceNoNameability = lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), utteranceCount ~ 1 + (1|Participant))
 utteranceNameability =lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), utteranceCount ~ nameability + 1+ (1|Participant))
 anova(utteranceNoNameability, utteranceNameability)
 
+wordNoNameability = lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), wordCount ~ 1 + (1|Participant))
+wordNameability =lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), wordCount ~ nameability + 1+ (1|Participant))
+anova(wordNoNameability, wordNameability)
+
+
 noNameabilityTap = lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), Tap ~ 1 + (1|Participant))
 NameabilityTap =lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), Tap ~ nameability + 1+ (1|Participant))
 NameabilityAndAPSTap =lmer(data = long_APS_withCondition %>% filter(condition == "EPS"), Tap ~ utteranceCount + nameability + 1+ (1|Participant))
 NameabilityInteractionAPSTap =lmer(data = na.omit(long_APS_withCondition %>% filter(condition == "EPS")), Tap ~ wordCount * nameability + 1+ (1|Participant))
+NameabilityInteractionAPSTime =lmer(data = na.omit(long_APS_withCondition %>% filter(condition == "EPS")), Time_sec ~ wordCount * nameability + 1+ (1|Participant))
+
+NameabilityInteractionAPSTap =lmer(data = na.omit(long_APS_withCondition %>% filter(condition == "EPS")), Time_sec ~ wordRate * nameability + 1+ (1|Participant))
+
+NameabilityInteractionAPSTap =lmer(data = na.omit(long_APS_withCondition %>% filter(condition == "EPS")), Time_sec ~ utteranceRate * nameability + 1+ (1|Participant))
+
+
 anova(noNameabilityTap, NameabilityTap)
+
+sjPlot:: tab_model(NameabilityTap)
+sjPlot:: tab_model(utteranceNameability)
+sjPlot::tab_model(wordNameability)
+sjPlot::tab_model(NameabilityInteractionAPSTime)
+
 
 # 
 NameabilityTap_dropmissing =lmer(data = na.omit(long_APS_withCondition) %>% filter(condition == "EPS"), Tap ~ nameability + 1+ (1|Participant))
 NameabilityAndAPSTap_dropmissing =lmer(data = na.omit(long_APS_withCondition) %>% filter(condition == "EPS"), Tap ~ wordCount + nameability + 1+ (1|Participant))
 NameabilityInteractionAPSTap =lmer(data = na.omit(long_APS_withCondition) %>% filter(condition == "EPS"), Tap ~ wordCount * nameability + 1+ (1|Participant))
+sjPlot::tab_model(NameabilityInteractionAPSTap)
 
 anova(NameabilityAndAPSTap_dropmissing, NameabilityTap_dropmissing)
 anova(NameabilityAndAPSTap_dropmissing, NameabilityInteractionAPSTap)
@@ -129,7 +159,7 @@ TapAsFunctionOfnameability_emmeans <- emmip(NameabilityInteractionAPSTap,
                        CIs = TRUE, 
                        plotit = FALSE)
 
-ggplot(TapAsFunctionOfnameability_emmeans,
+test = ggplot(TapAsFunctionOfnameability_emmeans,
      aes(
        x = wordCount,
        y = yvar,
@@ -147,8 +177,6 @@ ggplot(TapAsFunctionOfnameability_emmeans,
     )
 
 ### in the data preparation, I need to transform
-library(sjPlot)
-
 set_theme(
   geom.outline.color = "antiquewhite4", 
   geom.outline.size = 1, 
@@ -166,8 +194,17 @@ plot_model(NameabilityInteractionAPSTap, type = "pred", terms = c("wordCount", "
 plt_utteranceAmountDuringNeutral = ggplot(data = long_APS_withCondition, aes(Tap)) +
   geom_histogram(binwidth = 1) + 
   ggtitle('') + 
-  scale_x_continuous("Utterances During All Neutral Trials") +
+  scale_x_continuous("Taps") +
   theme_minimal()
+
+NameabilityInteractionAPS_rate_Tap =lmer(data = na.omit(long_APS_withCondition) %>% filter(condition == "EPS"), Tap ~ wordRate * nameability + 1+ (1|Participant))
+
+NameabilityInteractionAPS_rate_Tap =lmer(data = na.omit(long_APS_withCondition) %>% filter(condition == "EPS") %>% mutate(utteranceRate = utteranceCount/Time_sec), Tap ~ utteranceRate * nameability + 1+ (1|Participant))
+
+sjPlot::tab_model(NameabilityInteractionAPS_rate_Tap, 
+                  title = "Utterance Rate calcuated using Time as denominator")
+
+
 ```
  
 `r prop_talkeduringNeutral`% participants uttered private speech during the play efficient trials.
@@ -177,5 +214,6 @@ plt_utteranceAmountDuringNeutral = ggplot(data = long_APS_withCondition, aes(Tap
 gridExtra::grid.arrange(plt_wordAmountDuringNeutral, plt_utteranceAmountDuringNeutral, nrow=1)
 
 ```
+
 
 Currently, there is no diff
